@@ -1,0 +1,21 @@
+# python
+backend/api/.venv/
+__pycache__/
+*.pyc
+
+# node / expo
+node_modules/
+.expo/
+dist/
+web-build/
+*.log
+app/ios/
+app/android/
+
+# secrets
+.env
+*.env
+!*.env.example
+
+# macOS
+.DS_Store
