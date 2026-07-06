@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     selfie_bucket: str = "selfies"
     retention_days: int = 90
     allowed_origins: str = "http://localhost:8081"
+    # Shared secret for scheduled jobs (GitHub Actions) to call /admin/purge-selfies
+    # without a teacher JWT. Empty = cron access disabled.
+    cron_secret: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

@@ -16,6 +16,8 @@ services:
         sync: false
       - key: SUPABASE_JWT_SECRET
         sync: false
+      - key: CRON_SECRET
+        sync: false
       - key: SELFIE_BUCKET
         value: selfies
       - key: RETENTION_DAYS

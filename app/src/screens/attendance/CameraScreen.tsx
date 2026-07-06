@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { logAttendance } from '../../services/attendanceApi';
@@ -51,6 +52,13 @@ export default function CameraScreen({ navigation, route }: Props) {
     setPhotoUri(photo.uri);
   };
 
+  // Cache hygiene (§9): never leave selfies in the camera/manipulator cache.
+  const cleanupLocal = async (...uris: (string | null)[]) => {
+    for (const uri of uris) {
+      if (uri) await FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
+    }
+  };
+
   const submit = async () => {
     if (!photoUri) return;
     setBusy(true);
@@ -62,6 +70,7 @@ export default function CameraScreen({ navigation, route }: Props) {
           direction,
           selfieUri: compressed,
         });
+        await cleanupLocal(photoUri, compressed);
         Alert.alert(
           'Recorded',
           `${person.full_name} checked ${direction}.`,
@@ -75,12 +84,14 @@ export default function CameraScreen({ navigation, route }: Props) {
           return;
         }
         // Network failure: queue locally, sync when connectivity returns.
+        // enqueue() copies the file into its own dir, so the originals can go.
         await enqueue({
           personId: person.id,
           personName: person.full_name,
           direction,
           selfieUri: compressed,
         });
+        await cleanupLocal(photoUri, compressed);
         Alert.alert(
           'Saved offline',
           `No connection — ${person.full_name}'s check-${direction} was queued and will sync automatically.`,

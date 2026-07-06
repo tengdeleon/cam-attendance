@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { createPerson, updatePerson, deactivatePerson } from '../../services/peopleApi';
+import { createPerson, updatePerson, deactivatePerson, erasePerson } from '../../services/peopleApi';
 import { colors, radius } from '../../constants/theme';
 import type { Role } from '../../types';
 import type { RootStackParamList } from '../../navigation/RootNavigator';
@@ -69,6 +69,45 @@ export default function PersonFormScreen({ navigation, route }: Props) {
     );
   };
 
+  const onErase = () => {
+    if (!editing) return;
+    // Double confirm — this deletes the person, their history, and all selfies.
+    Alert.alert(
+      'Erase permanently?',
+      `This deletes ${editing.full_name}, ALL their attendance records, and every selfie. It cannot be undone. Use only for a formal deletion request.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue',
+          style: 'destructive',
+          onPress: () =>
+            Alert.alert('Final confirmation', `Type of action: PERMANENT erase of ${editing.full_name}.`, [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Erase everything',
+                style: 'destructive',
+                onPress: async () => {
+                  setError(null);
+                  setBusy(true);
+                  try {
+                    const res = await erasePerson(editing.id);
+                    Alert.alert(
+                      'Erased',
+                      `${res.attendance_deleted} records and ${res.selfies_removed} selfies deleted.`,
+                      [{ text: 'OK', onPress: () => navigation.goBack() }]
+                    );
+                  } catch (e: any) {
+                    setError(e.message ?? 'Erase failed');
+                    setBusy(false);
+                  }
+                },
+              },
+            ]),
+        },
+      ]
+    );
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.label}>Full name</Text>
@@ -108,9 +147,14 @@ export default function PersonFormScreen({ navigation, route }: Props) {
       </TouchableOpacity>
 
       {editing && (
-        <TouchableOpacity style={styles.deactivate} onPress={onDeactivate} disabled={busy}>
-          <Text style={styles.deactivateText}>Deactivate</Text>
-        </TouchableOpacity>
+        <>
+          <TouchableOpacity style={styles.deactivate} onPress={onDeactivate} disabled={busy}>
+            <Text style={styles.deactivateText}>Deactivate</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.erase} onPress={onErase} disabled={busy}>
+            <Text style={styles.eraseText}>Erase permanently (deletion request)…</Text>
+          </TouchableOpacity>
+        </>
       )}
     </View>
   );
@@ -149,4 +193,6 @@ const styles = StyleSheet.create({
   buttonText: { color: colors.onPrimary, fontSize: 16, fontWeight: '700' },
   deactivate: { alignItems: 'center', marginTop: 20 },
   deactivateText: { color: colors.error, fontSize: 14 },
+  erase: { alignItems: 'center', marginTop: 16 },
+  eraseText: { color: colors.gray, fontSize: 12, textDecorationLine: 'underline' },
 });

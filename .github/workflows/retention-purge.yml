@@ -1,0 +1,26 @@
+# Daily selfie-retention purge (PROJECT_INSTRUCTIONS §9).
+# Calls POST /admin/purge-selfies on the deployed API with the shared cron key.
+# Requires repo secret CAM_CRON_SECRET (same value as Render env var CRON_SECRET).
+name: retention-purge
+
+on:
+  schedule:
+    # 18:00 UTC = 02:00 Asia/Manila, daily
+    - cron: "0 18 * * *"
+  workflow_dispatch: {} # allow manual runs from the Actions tab
+
+jobs:
+  purge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call purge endpoint
+        run: |
+          code=$(curl -s -o response.txt -w "%{http_code}" -X POST \
+            -H "X-Cron-Key: ${{ secrets.CAM_CRON_SECRET }}" \
+            --retry 3 --retry-delay 30 --max-time 120 \
+            https://cam-api-38sv.onrender.com/admin/purge-selfies)
+          cat response.txt
+          if [ "$code" != "200" ]; then
+            echo "Purge failed with HTTP $code" >&2
+            exit 1
+          fi
