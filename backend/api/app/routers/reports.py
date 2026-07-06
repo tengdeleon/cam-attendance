@@ -4,9 +4,16 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import PlainTextResponse
 
 from app.deps import current_teacher
-from app.services import export_service
+from app.models.schemas import HistoryRow
+from app.services import attendance_service, export_service
 
 router = APIRouter(prefix="/reports", tags=["reports"])
+
+
+@router.get("/history", response_model=list[HistoryRow])
+def history(start: date, end: date, _: dict = Depends(current_teacher)):
+    """Attendance rows for Manila-local days [start, end], newest first."""
+    return attendance_service.history(start, end)
 
 
 @router.get("/history.csv", response_class=PlainTextResponse)

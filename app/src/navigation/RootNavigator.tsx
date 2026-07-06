@@ -8,6 +8,8 @@ import { useAuth } from '../hooks/useAuth';
 import LoginScreen from '../screens/auth/LoginScreen';
 import CheckInScreen from '../screens/attendance/CheckInScreen';
 import CameraScreen from '../screens/attendance/CameraScreen';
+import TodayScreen from '../screens/attendance/TodayScreen';
+import HistoryScreen from '../screens/reports/HistoryScreen';
 import RosterListScreen from '../screens/roster/RosterListScreen';
 import PersonFormScreen from '../screens/roster/PersonFormScreen';
 import { colors } from '../constants/theme';
@@ -38,6 +40,22 @@ function MainTabs() {
         options={{
           title: 'Check-In',
           tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>✓</Text>,
+        }}
+      />
+      <Tabs.Screen
+        name="Today"
+        component={TodayScreen}
+        options={{
+          title: 'Today',
+          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>●</Text>,
+        }}
+      />
+      <Tabs.Screen
+        name="History"
+        component={HistoryScreen}
+        options={{
+          title: 'History',
+          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>◷</Text>,
         }}
       />
       <Tabs.Screen

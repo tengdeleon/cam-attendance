@@ -34,3 +34,12 @@ export interface TodayRow {
   last_direction: Direction;
   last_time: string;
 }
+
+export interface HistoryRow {
+  id: string;
+  person_id: string;
+  full_name: string;
+  role: Role;
+  direction: Direction;
+  server_time: string;
+}

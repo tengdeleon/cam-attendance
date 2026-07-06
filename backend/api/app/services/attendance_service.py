@@ -1,12 +1,22 @@
-"""Attendance business logic: validation, insert, today's board."""
+"""Attendance business logic: validation, insert, today's board, history."""
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
 
 from app.db import get_supabase
 from app.models.schemas import AttendanceIn
 from app.services import storage_service
+
+MANILA = ZoneInfo("Asia/Manila")
+
+
+def manila_day_bounds(start: date, end: date) -> tuple[str, str]:
+    """UTC ISO bounds covering Manila-local days [start, end] inclusive."""
+    lo = datetime.combine(start, time.min, tzinfo=MANILA).astimezone(timezone.utc)
+    hi = datetime.combine(end + timedelta(days=1), time.min, tzinfo=MANILA).astimezone(timezone.utc)
+    return lo.isoformat(), hi.isoformat()
 
 
 def record_attendance(payload: AttendanceIn, selfie: bytes, teacher_id: str) -> dict:
@@ -36,13 +46,15 @@ def record_attendance(payload: AttendanceIn, selfie: bytes, teacher_id: str) -> 
 
 
 def today_board() -> list[dict]:
-    """Latest direction per person for the current UTC date."""
+    """Latest direction per person for the current Manila-local date."""
     sb = get_supabase()
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today_mnl = datetime.now(MANILA).date()
+    lo, hi = manila_day_bounds(today_mnl, today_mnl)
     res = (
         sb.table("attendance")
         .select("person_id, direction, server_time, people(full_name, role)")
-        .gte("server_time", f"{today}T00:00:00Z")
+        .gte("server_time", lo)
+        .lt("server_time", hi)
         .order("server_time", desc=True)
         .execute()
     )
@@ -58,3 +70,28 @@ def today_board() -> list[dict]:
                 "last_time": r["server_time"],
             }
     return list(seen.values())
+
+
+def history(start: date, end: date) -> list[dict]:
+    """Attendance rows for Manila-local days [start, end], newest first."""
+    lo, hi = manila_day_bounds(start, end)
+    sb = get_supabase()
+    res = (
+        sb.table("attendance")
+        .select("id, person_id, direction, server_time, people(full_name, role)")
+        .gte("server_time", lo)
+        .lt("server_time", hi)
+        .order("server_time", desc=True)
+        .execute()
+    )
+    return [
+        {
+            "id": r["id"],
+            "person_id": r["person_id"],
+            "full_name": r["people"]["full_name"],
+            "role": r["people"]["role"],
+            "direction": r["direction"],
+            "server_time": r["server_time"],
+        }
+        for r in res.data or []
+    ]

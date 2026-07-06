@@ -38,3 +38,12 @@ class TodayRow(BaseModel):
     role: str
     last_direction: Literal["in", "out"]
     last_time: datetime
+
+
+class HistoryRow(BaseModel):
+    id: str
+    person_id: str
+    full_name: str
+    role: str
+    direction: Literal["in", "out"]
+    server_time: datetime
