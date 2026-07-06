@@ -1,5 +1,5 @@
 #!/bin/bash
-# CAM — start the dev environment (double-click in Finder, or: bash startDevWork.command)
+# CAM — start the dev environment (double-click in Finder, or: bash startDevCAM.command)
 # Opens 3 Terminal windows: backend (uvicorn), app (expo), git.
 # Also refreshes the LAN IP in app/.env so the phone can reach the backend.
 
@@ -27,9 +27,12 @@ fi
 osascript <<EOF
 tell application "Terminal"
   activate
-  do script "cd \"$PROJECT/backend/api\" && source .venv/bin/activate && echo '── CAM BACKEND ──' && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000"
-  do script "cd \"$PROJECT/app\" && echo '── CAM APP (scan QR with Expo Go) ──' && npx expo start $EXPO_FLAGS"
-  do script "cd \"$PROJECT\" && echo '── CAM GIT ──' && git status -sb"
+  set t1 to do script "cd \"$PROJECT/backend/api\" && source .venv/bin/activate && echo '── CAM BACKEND ──' && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000"
+  set custom title of t1 to "CAM-BACKEND"
+  set t2 to do script "cd \"$PROJECT/app\" && echo '── CAM APP (scan QR with Expo Go) ──' && npx expo start $EXPO_FLAGS"
+  set custom title of t2 to "CAM-APP"
+  set t3 to do script "cd \"$PROJECT\" && echo '── CAM GIT ──' && git status -sb"
+  set custom title of t3 to "CAM-GIT"
 end tell
 EOF
 

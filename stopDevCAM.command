@@ -45,5 +45,16 @@ else
   fi
 fi
 
+# ── 3. Close the Terminal windows opened by startDevCAM ─────────────────
+osascript <<'EOF' 2>/dev/null
+tell application "Terminal"
+  repeat with w in (every window whose name contains "CAM-")
+    try
+      close w
+    end try
+  end repeat
+end tell
+EOF
+
 echo
-echo "✅ Dev environment stopped. You can close the Terminal windows."
+echo "✅ Dev environment stopped and windows closed."
