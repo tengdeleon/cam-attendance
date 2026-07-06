@@ -1,0 +1,24 @@
+# Render Blueprint — creates the CAM API web service in one step.
+# Dashboard → New → Blueprint → select this repo. Secrets (sync: false)
+# are prompted for in the dashboard and never live in git.
+services:
+  - type: web
+    name: cam-api
+    runtime: docker
+    plan: free
+    rootDir: backend/api
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: SELFIE_BUCKET
+        value: selfies
+      - key: RETENTION_DAYS
+        value: "90"
+      - key: ALLOWED_ORIGINS
+        value: http://localhost:8081

@@ -11,6 +11,9 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../../navigation/RootNavigator';
 import { getHistory } from '../../services/reportsApi';
 import { addDays, formatDateLabel, formatTime, manilaDateOf, todayManila } from '../../utils/date';
 import type { HistoryRow } from '../../types';
@@ -20,6 +23,7 @@ type QuickRange = 'today' | 'yesterday' | 'week' | 'custom';
 
 export default function HistoryScreen() {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [start, setStart] = useState(todayManila());
   const [end, setEnd] = useState(todayManila());
   const [quick, setQuick] = useState<QuickRange>('today');
@@ -93,7 +97,15 @@ export default function HistoryScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + spacing.md }]}>
-      <Text style={type.title}>History</Text>
+      <View style={styles.titleRow}>
+        <Text style={type.title}>History</Text>
+        <TouchableOpacity
+          style={styles.exportBtn}
+          onPress={() => navigation.navigate('Export', { start, end })}
+        >
+          <Text style={styles.exportText}>Export CSV</Text>
+        </TouchableOpacity>
+      </View>
 
       <View style={styles.chips}>
         {(
@@ -197,6 +209,19 @@ const styles = StyleSheet.create({
   },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   error: { color: colors.error, marginTop: spacing.sm },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  exportBtn: {
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: radius.pill,
+    paddingVertical: 6,
+    paddingHorizontal: spacing.md,
+  },
+  exportText: { color: colors.primary, fontSize: 13, fontWeight: '700' },
   chips: {
     flexDirection: 'row',
     gap: spacing.sm,

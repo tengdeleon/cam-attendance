@@ -10,6 +10,7 @@ import CheckInScreen from '../screens/attendance/CheckInScreen';
 import CameraScreen from '../screens/attendance/CameraScreen';
 import TodayScreen from '../screens/attendance/TodayScreen';
 import HistoryScreen from '../screens/reports/HistoryScreen';
+import ExportScreen from '../screens/reports/ExportScreen';
 import RosterListScreen from '../screens/roster/RosterListScreen';
 import PersonFormScreen from '../screens/roster/PersonFormScreen';
 import { colors } from '../constants/theme';
@@ -20,6 +21,7 @@ export type RootStackParamList = {
   Main: undefined;
   PersonForm: { person?: Person } | undefined;
   Camera: { person: Person; direction: Direction };
+  Export: { start: string; end: string }; // Manila-local yyyy-mm-dd, inclusive
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -100,6 +102,11 @@ export default function RootNavigator() {
               name="Camera"
               component={CameraScreen}
               options={{ animation: 'slide_from_bottom' }}
+            />
+            <Stack.Screen
+              name="Export"
+              component={ExportScreen}
+              options={{ headerShown: true, title: 'Export', headerBackTitle: 'Back' }}
             />
           </>
         ) : (

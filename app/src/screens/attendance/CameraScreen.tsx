@@ -14,6 +14,8 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { logAttendance } from '../../services/attendanceApi';
+import { ApiError } from '../../services/apiClient';
+import { enqueue } from '../../services/syncQueue';
 import { compressSelfie } from '../../utils/image';
 import { colors, radius } from '../../constants/theme';
 import type { RootStackParamList } from '../../navigation/RootNavigator';
@@ -54,16 +56,37 @@ export default function CameraScreen({ navigation, route }: Props) {
     setBusy(true);
     try {
       const compressed = await compressSelfie(photoUri);
-      await logAttendance({
-        personId: person.id,
-        direction,
-        selfieUri: compressed,
-      });
-      Alert.alert(
-        'Recorded',
-        `${person.full_name} checked ${direction}.`,
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
-      );
+      try {
+        await logAttendance({
+          personId: person.id,
+          direction,
+          selfieUri: compressed,
+        });
+        Alert.alert(
+          'Recorded',
+          `${person.full_name} checked ${direction}.`,
+          [{ text: 'OK', onPress: () => navigation.goBack() }]
+        );
+      } catch (e: any) {
+        if (e instanceof ApiError) {
+          // Server reached and rejected it — a real error, don't queue.
+          Alert.alert('Failed', e.message ?? 'Could not record attendance');
+          setBusy(false);
+          return;
+        }
+        // Network failure: queue locally, sync when connectivity returns.
+        await enqueue({
+          personId: person.id,
+          personName: person.full_name,
+          direction,
+          selfieUri: compressed,
+        });
+        Alert.alert(
+          'Saved offline',
+          `No connection — ${person.full_name}'s check-${direction} was queued and will sync automatically.`,
+          [{ text: 'OK', onPress: () => navigation.goBack() }]
+        );
+      }
     } catch (e: any) {
       Alert.alert('Failed', e.message ?? 'Could not record attendance');
       setBusy(false);

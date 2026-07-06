@@ -6,13 +6,14 @@ export interface LogAttendanceInput {
   personId: string;
   direction: Direction;
   selfieUri: string; // local file uri of the (compressed) jpeg
+  deviceTime?: string; // ISO; set by queue replays to keep the original capture time
 }
 
-export function logAttendance({ personId, direction, selfieUri }: LogAttendanceInput) {
+export function logAttendance({ personId, direction, selfieUri, deviceTime }: LogAttendanceInput) {
   const form = new FormData();
   form.append('person_id', personId);
   form.append('direction', direction);
-  form.append('device_time', new Date().toISOString());
+  form.append('device_time', deviceTime ?? new Date().toISOString());
   form.append('selfie', {
     uri: selfieUri,
     name: 'selfie.jpg',

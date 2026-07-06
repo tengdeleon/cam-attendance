@@ -13,15 +13,21 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { listPeople } from '../../services/peopleApi';
 import { getToday } from '../../services/attendanceApi';
+import { pendingCount } from '../../services/syncQueue';
+import { useNetwork } from '../../hooks/useNetwork';
 import { colors, radius } from '../../constants/theme';
 import type { Direction, Person, TodayRow } from '../../types';
 import type { RootStackParamList } from '../../navigation/RootNavigator';
 
+const ROSTER_CACHE_KEY = 'cam.roster.cache';
+
 export default function CheckInScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { online } = useNetwork();
   const [people, setPeople] = useState<Person[]>([]);
   const [today, setToday] = useState<TodayRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -29,6 +35,7 @@ export default function CheckInScreen() {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Person | null>(null);
   const [direction, setDirection] = useState<Direction>('in');
+  const [pending, setPending] = useState(0);
 
   const load = useCallback(async () => {
     setError(null);
@@ -36,8 +43,17 @@ export default function CheckInScreen() {
       const [p, t] = await Promise.all([listPeople(), getToday()]);
       setPeople(p);
       setToday(t);
+      // cache the roster so check-ins still work offline
+      AsyncStorage.setItem(ROSTER_CACHE_KEY, JSON.stringify(p)).catch(() => {});
     } catch (e: any) {
-      setError(e.message ?? 'Failed to load');
+      // offline (or API down): fall back to the last cached roster
+      const cached = await AsyncStorage.getItem(ROSTER_CACHE_KEY).catch(() => null);
+      if (cached) {
+        setPeople(JSON.parse(cached));
+        setToday([]);
+      } else {
+        setError(e.message ?? 'Failed to load');
+      }
     } finally {
       setLoading(false);
     }
@@ -46,6 +62,7 @@ export default function CheckInScreen() {
   useFocusEffect(
     useCallback(() => {
       setSelected(null);
+      setPending(pendingCount());
       load();
     }, [load])
   );
@@ -81,6 +98,15 @@ export default function CheckInScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top + 8 }]}>
       <Text style={styles.title}>Check-In</Text>
+
+      {(online === false || pending > 0) && (
+        <View style={styles.banner}>
+          <Text style={styles.bannerText}>
+            {online === false ? 'Offline — entries will be queued. ' : ''}
+            {pending > 0 ? `${pending} pending to sync.` : ''}
+          </Text>
+        </View>
+      )}
 
       <TextInput
         style={styles.search}
@@ -159,6 +185,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   error: { color: colors.error, marginBottom: 8 },
+  banner: {
+    backgroundColor: '#FFF4E5',
+    borderRadius: radius.sm,
+    padding: 8,
+    marginTop: 8,
+  },
+  bannerText: { color: '#8A5A00', fontSize: 13, fontWeight: '600' },
   empty: { textAlign: 'center', color: colors.gray, marginTop: 32 },
   row: {
     flexDirection: 'row',

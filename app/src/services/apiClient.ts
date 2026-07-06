@@ -38,3 +38,24 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }
+
+/** Same as api() but returns the raw response body as text (e.g. CSV). */
+export async function apiText(path: string): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+
+  const res = await fetch(`${BASE_URL}${path}`, {
+    headers: { Authorization: `Bearer ${token ?? ''}` },
+  });
+  if (!res.ok) {
+    let detail = res.statusText;
+    try {
+      const body = await res.json();
+      detail = body.detail ?? JSON.stringify(body);
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new ApiError(res.status, detail);
+  }
+  return res.text();
+}
