@@ -1,0 +1,10 @@
+{
+  "expo": {
+    "name": "CAM",
+    "slug": "cam-center-attendance",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "plugins": ["expo-camera"],
+    "_note": "Placeholder. Generate the real config with `npx create-expo-app`."
+  }
+}

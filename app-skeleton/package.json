@@ -1,0 +1,7 @@
+{
+  "name": "cam-app",
+  "version": "0.1.0",
+  "private": true,
+  "_note": "Placeholder. Run `npx create-expo-app` then add: @supabase/supabase-js, @react-navigation/native, expo-camera, expo-sqlite.",
+  "scripts": { "start": "expo start" }
+}
