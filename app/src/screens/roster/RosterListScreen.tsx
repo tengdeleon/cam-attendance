@@ -11,13 +11,16 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { listPeople } from '../../services/peopleApi';
 import { useAuth } from '../../hooks/useAuth';
 import type { Person, Role } from '../../types';
+import { colors, radius } from '../../constants/theme';
 
 type Filter = 'all' | Role;
 
 export default function RosterListScreen() {
+  const insets = useSafeAreaInsets();
   const { signOut } = useAuth();
   const [people, setPeople] = useState<Person[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,7 +62,7 @@ export default function RosterListScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top + 8 }]}>
       <View style={styles.header}>
         <Text style={styles.title}>Roster</Text>
         <TouchableOpacity onPress={signOut}>
@@ -109,38 +112,39 @@ export default function RosterListScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff', padding: 16 },
+  container: { flex: 1, backgroundColor: colors.background, padding: 16 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title: { fontSize: 28, fontWeight: '700' },
-  signOut: { color: '#dc2626', fontSize: 14 },
+  title: { fontSize: 28, fontWeight: '800', color: colors.ink },
+  signOut: { color: colors.primary, fontSize: 14, fontWeight: '600' },
   search: {
     borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 8,
+    borderColor: colors.border,
+    borderRadius: radius.md,
     padding: 10,
     marginVertical: 12,
+    backgroundColor: colors.surface,
   },
   filters: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   chip: {
     paddingHorizontal: 14,
     paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: '#f1f5f9',
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
   },
-  chipActive: { backgroundColor: '#1d4ed8' },
-  chipText: { color: '#334155', textTransform: 'capitalize' },
-  chipTextActive: { color: '#fff' },
-  error: { color: '#dc2626', marginBottom: 8 },
-  empty: { textAlign: 'center', color: '#64748b', marginTop: 32 },
+  chipActive: { backgroundColor: colors.primary },
+  chipText: { color: colors.text, textTransform: 'capitalize' },
+  chipTextActive: { color: colors.onPrimary },
+  error: { color: colors.error, marginBottom: 8 },
+  empty: { textAlign: 'center', color: colors.gray, marginTop: 32 },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e2e8f0',
+    borderBottomColor: colors.border,
   },
-  name: { fontSize: 16 },
-  role: { fontSize: 13, color: '#64748b', textTransform: 'capitalize' },
-  roleTeacher: { color: '#1d4ed8' },
+  name: { fontSize: 16, color: colors.text },
+  role: { fontSize: 13, color: colors.gray, textTransform: 'capitalize' },
+  roleTeacher: { color: colors.blue },
 });
