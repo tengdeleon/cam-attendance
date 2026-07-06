@@ -1,6 +1,9 @@
 // Searchable list of people (teacher/student filter).
 // Also serves as the M1 smoke test: proves the API accepts our token.
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../../navigation/RootNavigator';
 import {
   ActivityIndicator,
   FlatList,
@@ -21,6 +24,7 @@ type Filter = 'all' | Role;
 
 export default function RosterListScreen() {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { signOut } = useAuth();
   const [people, setPeople] = useState<Person[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,9 +43,12 @@ export default function RosterListScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  // reload whenever this screen regains focus (e.g. returning from PersonForm)
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
 
   const visible = useMemo(
     () =>
@@ -65,9 +72,14 @@ export default function RosterListScreen() {
     <View style={[styles.container, { paddingTop: insets.top + 8 }]}>
       <View style={styles.header}>
         <Text style={styles.title}>Roster</Text>
-        <TouchableOpacity onPress={signOut}>
-          <Text style={styles.signOut}>Sign out</Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity style={styles.addButton} onPress={() => navigation.navigate('PersonForm')}>
+            <Text style={styles.addButtonText}>＋ Add</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={signOut}>
+            <Text style={styles.signOut}>Sign out</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <TextInput
@@ -99,12 +111,15 @@ export default function RosterListScreen() {
         refreshControl={<RefreshControl refreshing={false} onRefresh={load} />}
         ListEmptyComponent={<Text style={styles.empty}>No people found.</Text>}
         renderItem={({ item }) => (
-          <View style={styles.row}>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => navigation.navigate('PersonForm', { person: item })}
+          >
             <Text style={styles.name}>{item.full_name}</Text>
             <Text style={[styles.role, item.role === 'teacher' && styles.roleTeacher]}>
               {item.role}
             </Text>
-          </View>
+          </TouchableOpacity>
         )}
       />
     </View>
@@ -117,6 +132,14 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   title: { fontSize: 28, fontWeight: '800', color: colors.ink },
   signOut: { color: colors.primary, fontSize: 14, fontWeight: '600' },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  addButton: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
+  addButtonText: { color: colors.onPrimary, fontWeight: '700' },
   search: {
     borderWidth: 1,
     borderColor: colors.border,

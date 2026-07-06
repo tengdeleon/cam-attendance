@@ -6,10 +6,13 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../hooks/useAuth';
 import LoginScreen from '../screens/auth/LoginScreen';
 import RosterListScreen from '../screens/roster/RosterListScreen';
+import PersonFormScreen from '../screens/roster/PersonFormScreen';
+import type { Person } from '../types';
 
 export type RootStackParamList = {
   Login: undefined;
   Roster: undefined;
+  PersonForm: { person?: Person } | undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -29,7 +32,18 @@ export default function RootNavigator() {
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {session ? (
-          <Stack.Screen name="Roster" component={RosterListScreen} />
+          <>
+            <Stack.Screen name="Roster" component={RosterListScreen} />
+            <Stack.Screen
+              name="PersonForm"
+              component={PersonFormScreen}
+              options={({ route }) => ({
+                headerShown: true,
+                title: route.params?.person ? 'Edit person' : 'Add person',
+                headerBackTitle: 'Roster',
+              })}
+            />
+          </>
         ) : (
           <Stack.Screen name="Login" component={LoginScreen} />
         )}
