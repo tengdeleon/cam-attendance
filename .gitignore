@@ -19,3 +19,4 @@ app/android/
 
 # macOS
 .DS_Store
+gitleaks-report.json

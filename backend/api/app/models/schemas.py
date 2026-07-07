@@ -1,7 +1,25 @@
 from datetime import datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+
+class TeacherIn(BaseModel):
+    """Admin provisions a new teacher who can log in with email + password."""
+
+    full_name: str = Field(min_length=1)
+    email: str = Field(min_length=3, description="Login email for the new teacher")
+    password: str = Field(min_length=8, description="Initial password assigned by admin")
+    is_admin: bool = False
+
+
+class TeacherOut(BaseModel):
+    person_id: str
+    teacher_account_id: str
+    auth_user_id: str
+    full_name: str
+    email: str
+    is_admin: bool
 
 
 class PersonIn(BaseModel):

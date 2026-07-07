@@ -1,0 +1,42 @@
+{
+  "cli": {
+    "version": ">= 12.0.0",
+    "appVersionSource": "local"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://cjdllpizedemzbrlfspv.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNqZGxscGl6ZWRlbXpicmxmc3B2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzOTY5NzIsImV4cCI6MjA5Nzk3Mjk3Mn0.Zvx-ZjkhzVvKmtqRqD3P_w9Ngzf1Gxq79ItnnVLxyh0",
+        "EXPO_PUBLIC_API_BASE_URL": "https://cam-api-38sv.onrender.com"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://cjdllpizedemzbrlfspv.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNqZGxscGl6ZWRlbXpicmxmc3B2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzOTY5NzIsImV4cCI6MjA5Nzk3Mjk3Mn0.Zvx-ZjkhzVvKmtqRqD3P_w9Ngzf1Gxq79ItnnVLxyh0",
+        "EXPO_PUBLIC_API_BASE_URL": "https://cam-api-38sv.onrender.com"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://cjdllpizedemzbrlfspv.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNqZGxscGl6ZWRlbXpicmxmc3B2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzOTY5NzIsImV4cCI6MjA5Nzk3Mjk3Mn0.Zvx-ZjkhzVvKmtqRqD3P_w9Ngzf1Gxq79ItnnVLxyh0",
+        "EXPO_PUBLIC_API_BASE_URL": "https://cam-api-38sv.onrender.com"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

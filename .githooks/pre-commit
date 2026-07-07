@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# CAM pre-commit hook: block commits that contain secrets.
+# Scans only STAGED changes (fast). Tracked in-repo via core.hooksPath.
+set -euo pipefail
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "⚠️  gitleaks not installed — skipping secret scan."
+  echo "    Install: brew install gitleaks   (see BUILD-GUIDE.md)"
+  exit 0
+fi
+
+echo "🔍 gitleaks: scanning staged changes for secrets..."
+
+if ! gitleaks protect --staged --redact --config .gitleaks.toml; then
+  echo ""
+  echo "❌ Commit blocked: gitleaks found a potential secret in staged changes."
+  echo "   • If it's a REAL secret: remove it, and rotate the key if it was ever exposed."
+  echo "   • If it's a false positive: add '# gitleaks:allow' on that line,"
+  echo "     or extend the allowlist in .gitleaks.toml."
+  echo "   • To bypass once (not recommended): git commit --no-verify"
+  exit 1
+fi
+
+echo "✅ gitleaks: no secrets in staged changes."
+exit 0

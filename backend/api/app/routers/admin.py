@@ -4,9 +4,20 @@ from fastapi import APIRouter, Depends, Header, HTTPException, status
 
 from app.config import settings
 from app.deps import current_admin, current_teacher
-from app.services import retention_service
+from app.models.schemas import TeacherIn, TeacherOut
+from app.services import retention_service, teacher_service
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+@router.post("/teachers", response_model=TeacherOut, status_code=status.HTTP_201_CREATED)
+def add_teacher(body: TeacherIn, _: dict = Depends(current_admin)):
+    """Admin provisions a new teacher who can log in with email + assigned password.
+
+    Creates the Supabase Auth login, the person record, and the teacher_accounts
+    link atomically (rolls back on any failure).
+    """
+    return teacher_service.provision_teacher(body)
 
 
 @router.delete("/people/{person_id}")

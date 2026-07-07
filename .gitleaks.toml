@@ -1,0 +1,23 @@
+# gitleaks config for CAM — Center Attendance Monitoring
+# Extends the default ruleset; adds allowlist for documentation placeholders.
+# Docs: https://github.com/gitleaks/gitleaks#configuration
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Ignore documentation placeholders and env templates"
+
+# Placeholder tokens like <JWT secret>, <service-role key>, <api-token>
+regexes = [
+  '''<[^>]*(key|secret|token|password)[^>]*>''',
+]
+
+# Docs and env templates that legitimately contain placeholder secret names.
+# NOTE: real .env files must stay gitignored — do NOT add them here as a
+# substitute for gitignoring, or real leaks would be silently allowed.
+paths = [
+  '''BUILD-GUIDE\.md''',
+  '''.*\.env\.example$''',
+  '''.*\.env\.template$''',
+]
