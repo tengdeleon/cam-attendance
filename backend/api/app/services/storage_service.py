@@ -4,6 +4,8 @@ from datetime import datetime, timezone
 from app.config import settings
 from app.db import get_supabase
 
+SELFIE_URL_TTL = 60  # seconds; hard-constrained — do not raise without security review
+
 
 def selfie_path(attendance_id: str) -> str:
     now = datetime.now(timezone.utc)
@@ -20,7 +22,10 @@ def upload_selfie(attendance_id: str, content: bytes) -> str:
     return path
 
 
-def signed_url(path: str, expires_in: int = 3600) -> str:
+def signed_url(path: str, expires_in: int = SELFIE_URL_TTL) -> str:
     sb = get_supabase()
-    res = sb.storage.from_(settings.selfie_bucket).create_signed_url(path, expires_in)
+    # Hard ceiling: no caller may exceed the security-reviewed TTL, even by passing a
+    # larger expires_in. The parameter only allows shorter windows.
+    ttl = min(expires_in, SELFIE_URL_TTL)
+    res = sb.storage.from_(settings.selfie_bucket).create_signed_url(path, ttl)
     return res.get("signedURL", "")

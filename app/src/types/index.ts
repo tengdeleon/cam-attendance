@@ -22,7 +22,6 @@ export interface AttendanceRecord {
   id: string;
   person_id: string;
   direction: Direction;
-  selfie_url: string;
   logged_by: string;
   server_time: string;
 }
@@ -33,6 +32,12 @@ export interface TodayRow {
   role: Role;
   last_direction: Direction;
   last_time: string;
+  last_attendance_id: string;
+}
+
+export interface SelfieUrlResponse {
+  url: string;
+  expires_in: number;
 }
 
 export interface HistoryRow {

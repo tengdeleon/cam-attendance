@@ -120,8 +120,25 @@ git branch -M main
 git push -u origin main
 ```
 
+### 1.1 Turn on secret scanning (do this in every clone)
+
+A `.gitignore` stops the files you *know* about. The secret-scanning hook catches the ones you don't — an API key pasted into a script, a token in `eas.json`. It's tracked in the repo but **git does not run it until you activate it**, and it's **fail-closed** (no `gitleaks` installed → commits are blocked, not skipped):
+
+```bash
+brew install gitleaks                 # the hook refuses to run without it
+git config core.hooksPath .githooks   # activate the tracked hook — one-time PER CLONE
+```
+
+Miss the `core.hooksPath` line and the hook sits inert; that's why the CI job in `.github/workflows/gitleaks.yml` re-scans every push as a backstop. Test it fires:
+
+```bash
+echo 'aws_secret_access_key="AKIAIOSFODNN7EXAMPLE"' > /tmp/leak.txt
+git add /tmp/leak.txt 2>/dev/null; git commit -m test   # should be BLOCKED
+git restore --staged /tmp/leak.txt; rm /tmp/leak.txt     # clean up
+```
+
 ### ✅ Checkpoint 1
-Repo visible on GitHub. `git status` shows a clean tree. No `.env` file is tracked (`git ls-files | grep .env` shows only `*.env.example`).
+Repo visible on GitHub. `git status` shows a clean tree. No `.env` file is tracked (`git ls-files | grep .env` shows only `*.env.example`). `git config core.hooksPath` prints `.githooks`, and `gitleaks version` prints a version.
 
 ---
 

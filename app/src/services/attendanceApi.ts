@@ -1,6 +1,6 @@
-// Calls FastAPI: POST /attendance (multipart selfie), GET /attendance/today.
+// Calls FastAPI: POST /attendance (multipart selfie), GET /attendance/today, GET /attendance/{id}/selfie.
 import { api } from './apiClient';
-import type { AttendanceRecord, Direction, TodayRow } from '../types';
+import type { AttendanceRecord, Direction, SelfieUrlResponse, TodayRow } from '../types';
 
 export interface LogAttendanceInput {
   personId: string;
@@ -24,3 +24,6 @@ export function logAttendance({ personId, direction, selfieUri, deviceTime }: Lo
 }
 
 export const getToday = () => api<TodayRow[]>('/attendance/today');
+
+export const getSelfieUrl = (attendanceId: string): Promise<SelfieUrlResponse> =>
+  api<SelfieUrlResponse>(`/attendance/${attendanceId}/selfie`);

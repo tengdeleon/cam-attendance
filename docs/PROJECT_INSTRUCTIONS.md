@@ -24,6 +24,7 @@ Out of scope (v1):
 - Parent-facing app or notifications.
 - Facial-recognition matching (selfie is for human verification only, not auto-ID).
 - Multi-center / franchise-wide dashboard (single center only).
+- Forced password change on first login + self-service password reset. (v1 provisions teachers with an admin-assigned temp password via `POST /admin/teachers`; changing it is a v2 item.)
 
 These are candidate v2 items, not v1.
 
@@ -166,6 +167,7 @@ CAM-Center Attendance Monitoring/
 | POST | `/attendance` | teacher | log in/out (multipart: fields + selfie) |
 | GET | `/attendance/today` | teacher | today's in/out board |
 | GET | `/reports/history.csv` | teacher | CSV export by date range |
+| POST | `/admin/teachers` | admin | provision a new teacher login (email + admin-assigned password); creates Auth user + `people` + `teacher_accounts` atomically |
 | POST | `/admin/purge-selfies` | admin | run retention purge |
 
 ## 9. Security & privacy (mandatory — involves minors)

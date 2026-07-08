@@ -1,0 +1,28 @@
+# gitleaks config for CAM — Center Attendance Monitoring
+# Extends the default ruleset; adds allowlist for documentation placeholders.
+# Docs: https://github.com/gitleaks/gitleaks#configuration
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Ignore documentation placeholders and env templates"
+
+# Placeholder tokens like <JWT secret>, <service-role key>, <api-token>
+regexes = [
+  '''<[^>]*(key|secret|token|password)[^>]*>''',
+  # Supabase ANON key (role:"anon", project ref cjdllpizedemzbrlfspv).
+  # Public by design — embedded in every client build as EXPO_PUBLIC_SUPABASE_ANON_KEY
+  # and safe under RLS + the FastAPI tier. Allowlists this exact token only, so a
+  # service_role JWT pasted anywhere would still trip the hook.
+  '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNqZGxscGl6ZWRlbXpicmxmc3B2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzOTY5NzIsImV4cCI6MjA5Nzk3Mjk3Mn0\.Zvx-ZjkhzVvKmtqRqD3P_w9Ngzf1Gxq79ItnnVLxyh0''',
+]
+
+# Docs and env templates that legitimately contain placeholder secret names.
+# NOTE: real .env files must stay gitignored — do NOT add them here as a
+# substitute for gitignoring, or real leaks would be silently allowed.
+paths = [
+  '''BUILD-GUIDE\.md''',
+  '''.*\.env\.example$''',
+  '''.*\.env\.template$''',
+]
