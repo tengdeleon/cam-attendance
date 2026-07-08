@@ -65,20 +65,40 @@ export default function CameraScreen({ navigation, route }: Props) {
     try {
       const compressed = await compressSelfie(photoUri);
       try {
-        await logAttendance({
+        const result = await logAttendance({
           personId: person.id,
           direction,
           selfieUri: compressed,
         });
         await cleanupLocal(photoUri, compressed);
-        Alert.alert(
-          'Recorded',
-          `${person.full_name} checked ${direction}.`,
-          [{ text: 'OK', onPress: () => navigation.goBack() }]
-        );
+
+        const showSuccess = () =>
+          Alert.alert(
+            'Recorded',
+            `${person.full_name} checked ${direction}.`,
+            [{ text: 'OK', onPress: () => navigation.goBack() }]
+          );
+
+        const missed = (result?.warnings ?? []).filter((w: { code: string }) => w.code === 'missed_checkout');
+        if (missed.length > 0) {
+          const dates = missed.map((w: { date: string }) => w.date).join(', ');
+          Alert.alert(
+            'Missed checkout detected',
+            `${person.full_name} had an open check-in with no checkout on: ${dates}. No changes made to prior records.`,
+            [{ text: 'OK', onPress: showSuccess }]
+          );
+        } else {
+          showSuccess();
+        }
       } catch (e: any) {
+        if (e instanceof ApiError && e.status === 409) {
+          // Business rejection (R1/R2): show the server message, never queue.
+          Alert.alert('Cannot record', e.message ?? 'Could not record attendance');
+          setBusy(false);
+          return;
+        }
         if (e instanceof ApiError) {
-          // Server reached and rejected it — a real error, don't queue.
+          // Other server-side rejection: real error, don't queue.
           Alert.alert('Failed', e.message ?? 'Could not record attendance');
           setBusy(false);
           return;

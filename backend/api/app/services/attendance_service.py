@@ -19,6 +19,22 @@ def manila_day_bounds(start: date, end: date) -> tuple[str, str]:
     return lo.isoformat(), hi.isoformat()
 
 
+def _find_missed_checkout_days(sb, person_id: str, before_utc: str, today_mnl: date) -> list[str]:
+    """Return Manila-local dates (YYYY-MM-DD) where person's last event was 'in',
+    strictly before today_mnl. Uses caller-supplied date to avoid a second clock read
+    that could straddle midnight and yield a different Manila date."""
+    res = (
+        sb.table("v_daily_last_direction")
+        .select("local_day, last_direction")
+        .eq("person_id", person_id)
+        .eq("last_direction", "in")
+        .lt("local_day", today_mnl.isoformat())
+        .order("local_day", desc=False)
+        .execute()
+    )
+    return [r["local_day"] for r in res.data or []]
+
+
 def record_attendance(payload: AttendanceIn, selfie: bytes, teacher_id: str) -> dict:
     if not selfie:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Selfie is required")
@@ -27,6 +43,48 @@ def record_attendance(payload: AttendanceIn, selfie: bytes, teacher_id: str) -> 
     person = sb.table("people").select("id,is_active").eq("id", payload.person_id).single().execute()
     if not person.data or not person.data["is_active"]:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown or inactive person")
+
+    # R1 / R2 — duplicate-state guard
+    today_mnl = datetime.now(MANILA).date()
+    lo, hi = manila_day_bounds(today_mnl, today_mnl)
+    existing = (
+        sb.table("attendance")
+        .select("id, direction")
+        .eq("person_id", payload.person_id)
+        .gte("server_time", lo)
+        .lt("server_time", hi)
+        .order("server_time", desc=True)
+        .limit(1)
+        .execute()
+    )
+    latest_today = existing.data[0] if existing.data else None
+
+    if payload.direction == "in" and latest_today and latest_today["direction"] == "in":
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={"detail": "Already checked in", "code": "already_checked_in"},
+        )
+    if payload.direction == "out" and (not latest_today or latest_today["direction"] == "out"):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={"detail": "Not checked in", "code": "not_checked_in"},
+        )
+
+    # R3 — missed-checkout warning detection (check-in path only)
+    warnings: list[dict] = []
+    if payload.direction == "in":
+        prior = (
+            sb.table("attendance")
+            .select("id, direction, server_time")
+            .eq("person_id", payload.person_id)
+            .lt("server_time", lo)
+            .order("server_time", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if prior.data and prior.data[0]["direction"] == "in":
+            missed = _find_missed_checkout_days(sb, payload.person_id, lo, today_mnl)
+            warnings = [{"code": "missed_checkout", "date": d} for d in missed]
 
     attendance_id = str(uuid.uuid4())
     path = storage_service.upload_selfie(attendance_id, selfie)
@@ -42,7 +100,7 @@ def record_attendance(payload: AttendanceIn, selfie: bytes, teacher_id: str) -> 
         "sync_status": "synced",
     }
     sb.table("attendance").insert(row).execute()
-    return row
+    return {**row, "warnings": warnings}
 
 
 def today_board() -> list[dict]:

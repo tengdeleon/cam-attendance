@@ -5,7 +5,11 @@ import { supabase } from './supabaseClient';
 const BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL!;
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(
+    public status: number,
+    message: string,
+    public code?: string,
+  ) {
     super(message);
   }
 }
@@ -27,13 +31,19 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   if (!res.ok) {
     let detail = res.statusText;
+    let code: string | undefined;
     try {
       const body = await res.json();
-      detail = body.detail ?? JSON.stringify(body);
+      if (typeof body.detail === 'object' && body.detail !== null) {
+        detail = body.detail.detail ?? JSON.stringify(body.detail);
+        code = body.detail.code;
+      } else {
+        detail = body.detail ?? JSON.stringify(body);
+      }
     } catch {
       /* non-JSON error body */
     }
-    throw new ApiError(res.status, detail);
+    throw new ApiError(res.status, detail, code);
   }
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
@@ -49,13 +59,19 @@ export async function apiText(path: string): Promise<string> {
   });
   if (!res.ok) {
     let detail = res.statusText;
+    let code: string | undefined;
     try {
       const body = await res.json();
-      detail = body.detail ?? JSON.stringify(body);
+      if (typeof body.detail === 'object' && body.detail !== null) {
+        detail = body.detail.detail ?? JSON.stringify(body.detail);
+        code = body.detail.code;
+      } else {
+        detail = body.detail ?? JSON.stringify(body);
+      }
     } catch {
       /* non-JSON error body */
     }
-    throw new ApiError(res.status, detail);
+    throw new ApiError(res.status, detail, code);
   }
   return res.text();
 }

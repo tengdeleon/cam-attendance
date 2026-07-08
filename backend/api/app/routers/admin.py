@@ -3,9 +3,10 @@ import secrets as pysecrets
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 
 from app.config import settings
+from app.db import get_supabase
 from app.deps import current_admin, current_teacher
-from app.models.schemas import TeacherIn, TeacherOut
-from app.services import retention_service, teacher_service
+from app.models.schemas import CenterSettingsOut, CenterSettingsPatch, TeacherIn, TeacherOut
+from app.services import reports_service, retention_service, teacher_service
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -46,3 +47,13 @@ async def admin_or_cron(
 async def purge(_: None = Depends(admin_or_cron)):
     removed = retention_service.purge_old_selfies()
     return {"removed": removed}
+
+
+@router.get("/center-settings", response_model=CenterSettingsOut)
+def get_center_settings(_: dict = Depends(current_admin)):
+    return reports_service.get_center_settings(get_supabase())
+
+
+@router.patch("/center-settings", response_model=CenterSettingsOut)
+def patch_center_settings(body: CenterSettingsPatch, _: dict = Depends(current_admin)):
+    return reports_service.update_center_settings(get_supabase(), body.model_dump(exclude_none=True))

@@ -106,12 +106,20 @@ export default function HistoryScreen() {
     <View style={[styles.container, { paddingTop: insets.top + spacing.md }]}>
       <View style={styles.titleRow}>
         <Text style={type.title}>History</Text>
-        <TouchableOpacity
-          style={styles.exportBtn}
-          onPress={() => navigation.navigate('Export', { start, end })}
-        >
-          <Text style={styles.exportText}>Export CSV</Text>
-        </TouchableOpacity>
+        <View style={styles.titleActions}>
+          <TouchableOpacity
+            style={styles.exportBtn}
+            onPress={() => navigation.navigate('PeriodReport')}
+          >
+            <Text style={styles.exportText}>Period Report</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.exportBtn}
+            onPress={() => navigation.navigate('Export', { start, end })}
+          >
+            <Text style={styles.exportText}>Export CSV</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.chips}>
@@ -239,6 +247,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  titleActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
   },
   exportBtn: {
     borderWidth: 1,

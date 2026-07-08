@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class TeacherIn(BaseModel):
@@ -41,12 +41,18 @@ class AttendanceIn(BaseModel):
     # selfie is uploaded as multipart file alongside this payload
 
 
+class AttendanceWarning(BaseModel):
+    code: Literal["missed_checkout"]
+    date: str  # Manila-local date, YYYY-MM-DD
+
+
 class AttendanceOut(BaseModel):
     id: str
     person_id: str
     direction: Literal["in", "out"]
     logged_by: str
     server_time: datetime
+    warnings: list[AttendanceWarning] = []
     # selfie_url deliberately omitted: the raw bucket path is never returned to the
     # client. Image access goes through GET /attendance/{id}/selfie (signed URL only).
 
@@ -72,3 +78,33 @@ class HistoryRow(BaseModel):
     role: str
     direction: Literal["in", "out"]
     server_time: datetime
+
+
+class DailyDetail(BaseModel):
+    date: str            # YYYY-MM-DD
+    first_in: str        # HH:MM:SS Manila-local
+    late_minutes: int
+    missed_checkout: bool
+
+
+class PeriodReportRow(BaseModel):
+    person_id: str
+    full_name: str
+    days_present: int
+    late_days: int
+    total_late_minutes: int
+    missed_checkouts: int
+    daily_detail: list[DailyDetail]
+
+
+class CenterSettingsOut(BaseModel):
+    open_time: str        # HH:MM:SS
+    grace_minutes: int
+    tz: str
+
+
+class CenterSettingsPatch(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    open_time: Optional[str] = None
+    grace_minutes: Optional[int] = None
+    tz: Optional[str] = None

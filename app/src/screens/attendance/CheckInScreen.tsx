@@ -16,7 +16,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { listPeople } from '../../services/peopleApi';
 import { getToday } from '../../services/attendanceApi';
-import { pendingCount } from '../../services/syncQueue';
+import { failedCount, pendingCount } from '../../services/syncQueue';
 import { useNetwork } from '../../hooks/useNetwork';
 import { colors, radius } from '../../constants/theme';
 import type { Direction, Person, TodayRow } from '../../types';
@@ -36,6 +36,7 @@ export default function CheckInScreen() {
   const [selected, setSelected] = useState<Person | null>(null);
   const [direction, setDirection] = useState<Direction>('in');
   const [pending, setPending] = useState(0);
+  const [failed, setFailed] = useState(0);
 
   const load = useCallback(async () => {
     setError(null);
@@ -63,6 +64,7 @@ export default function CheckInScreen() {
     useCallback(() => {
       setSelected(null);
       setPending(pendingCount());
+      setFailed(failedCount());
       load();
     }, [load])
   );
@@ -98,6 +100,17 @@ export default function CheckInScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top + 8 }]}>
       <Text style={styles.title}>Check-In</Text>
+
+      {failed > 0 && (
+        <TouchableOpacity
+          style={styles.failedBanner}
+          onPress={() => navigation.navigate('FailedQueue')}
+        >
+          <Text style={styles.failedBannerText}>
+            {failed} item{failed !== 1 ? 's' : ''} need attention — tap to review
+          </Text>
+        </TouchableOpacity>
+      )}
 
       {(online === false || pending > 0) && (
         <View style={styles.banner}>
@@ -185,6 +198,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   error: { color: colors.error, marginBottom: 8 },
+  failedBanner: {
+    backgroundColor: '#FFEAEA',
+    borderRadius: radius.sm,
+    padding: 8,
+    marginTop: 8,
+  },
+  failedBannerText: { color: '#C0000A', fontSize: 13, fontWeight: '600' },
   banner: {
     backgroundColor: '#FFF4E5',
     borderRadius: radius.sm,

@@ -8,9 +8,11 @@ import { useAuth } from '../hooks/useAuth';
 import LoginScreen from '../screens/auth/LoginScreen';
 import CheckInScreen from '../screens/attendance/CheckInScreen';
 import CameraScreen from '../screens/attendance/CameraScreen';
+import FailedQueueScreen from '../screens/attendance/FailedQueueScreen';
 import TodayScreen from '../screens/attendance/TodayScreen';
 import HistoryScreen from '../screens/reports/HistoryScreen';
 import ExportScreen from '../screens/reports/ExportScreen';
+import PeriodReportScreen from '../screens/reports/PeriodReportScreen';
 import RosterListScreen from '../screens/roster/RosterListScreen';
 import PersonFormScreen from '../screens/roster/PersonFormScreen';
 import { colors } from '../constants/theme';
@@ -22,6 +24,8 @@ export type RootStackParamList = {
   PersonForm: { person?: Person } | undefined;
   Camera: { person: Person; direction: Direction };
   Export: { start: string; end: string }; // Manila-local yyyy-mm-dd, inclusive
+  PeriodReport: undefined;
+  FailedQueue: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -107,6 +111,16 @@ export default function RootNavigator() {
               name="Export"
               component={ExportScreen}
               options={{ headerShown: true, title: 'Export', headerBackTitle: 'Back' }}
+            />
+            <Stack.Screen
+              name="PeriodReport"
+              component={PeriodReportScreen}
+              options={{ headerShown: true, title: 'Period Report', headerBackTitle: 'Back' }}
+            />
+            <Stack.Screen
+              name="FailedQueue"
+              component={FailedQueueScreen}
+              options={{ headerShown: true, title: 'Failed Items', headerBackTitle: 'Back' }}
             />
           </>
         ) : (

@@ -37,6 +37,18 @@ db.execSync(`
     selfie_path TEXT NOT NULL,
     created_at TEXT NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS failed_attendance (
+    id TEXT PRIMARY KEY,
+    person_id TEXT NOT NULL,
+    person_name TEXT NOT NULL,
+    direction TEXT NOT NULL,
+    device_time TEXT NOT NULL,
+    selfie_path TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    failed_at TEXT NOT NULL,
+    error_code TEXT,
+    error_message TEXT
+  );
 `);
 
 async function ensureQueueDir(): Promise<void> {
@@ -91,6 +103,50 @@ async function remove(item: PendingItem): Promise<void> {
   await FileSystem.deleteAsync(item.selfie_path, { idempotent: true });
 }
 
+export interface FailedItem {
+  id: string;
+  person_id: string;
+  person_name: string;
+  direction: Direction;
+  device_time: string;
+  selfie_path: string;
+  created_at: string;
+  failed_at: string;
+  error_code: string | null;
+  error_message: string | null;
+}
+
+export function listFailed(): FailedItem[] {
+  return db.getAllSync<FailedItem>(
+    'SELECT * FROM failed_attendance ORDER BY failed_at ASC'
+  );
+}
+
+export function failedCount(): number {
+  const row = db.getFirstSync<{ n: number }>('SELECT COUNT(*) AS n FROM failed_attendance');
+  return row?.n ?? 0;
+}
+
+export async function dismissFailed(id: string): Promise<void> {
+  const item = db.getFirstSync<FailedItem>('SELECT selfie_path FROM failed_attendance WHERE id = ?', [id]);
+  db.runSync('DELETE FROM failed_attendance WHERE id = ?', [id]);
+  if (item?.selfie_path) {
+    await FileSystem.deleteAsync(item.selfie_path, { idempotent: true })
+      .catch((err) => console.warn('[syncQueue] selfie delete failed on dismiss', err));
+  }
+}
+
+export async function dismissAllFailed(): Promise<void> {
+  const items = listFailed();
+  db.runSync('DELETE FROM failed_attendance');
+  for (const item of items) {
+    if (item.selfie_path) {
+      await FileSystem.deleteAsync(item.selfie_path, { idempotent: true })
+        .catch((err) => console.warn('[syncQueue] selfie delete failed on dismissAll', err));
+    }
+  }
+}
+
 export interface FlushResult {
   synced: number;
   dropped: number; // rejected by the API (4xx) — not retryable
@@ -118,8 +174,25 @@ export async function flush(): Promise<FlushResult> {
         synced++;
       } catch (e) {
         if (e instanceof ApiError && e.status >= 400 && e.status < 500) {
-          // Server understood and rejected (e.g. person deactivated) — drop it.
-          await remove(item);
+          // Server rejected — move to failed table so the teacher can review.
+          // Selfie is kept until the teacher dismisses (intentional §9 exception
+          // for failed items; dismissFailed() always deletes the file).
+          // Both writes are in one transaction: no window where item is in neither table.
+          db.withTransactionSync(() => {
+            db.runSync(
+              `INSERT OR REPLACE INTO failed_attendance
+               (id, person_id, person_name, direction, device_time, selfie_path, created_at, failed_at, error_code, error_message)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [
+                item.id, item.person_id, item.person_name, item.direction,
+                item.device_time, item.selfie_path, item.created_at,
+                new Date().toISOString(),
+                e.code ?? '',
+                e.message,
+              ]
+            );
+            db.runSync('DELETE FROM pending_attendance WHERE id = ?', [item.id]);
+          });
           dropped++;
         } else {
           // Network / server error: stop, keep this and the rest queued.
