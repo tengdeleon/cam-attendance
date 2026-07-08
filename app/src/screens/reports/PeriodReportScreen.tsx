@@ -14,6 +14,7 @@ import {
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { getPeriodReport, getPeriodReportCsv, type PeriodReportRow } from '../../services/reportsApi';
+import { todayManila } from '../../utils/date';
 import { colors, radius, spacing, type as typeStyle } from '../../constants/theme';
 
 type Period = 'h1' | 'h2' | 'full';
@@ -30,8 +31,8 @@ const MONTH_NAMES = [
 ];
 
 function currentManilaMonth(): { y: number; m: number } {
-  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
-  return { y: now.getFullYear(), m: now.getMonth() + 1 }; // m is 1-based
+  const [y, m] = todayManila().split('-').map(Number); // todayManila() = 'yyyy-mm-dd'
+  return { y, m }; // m is 1-based
 }
 
 // Current month + past 6 months, newest first.
