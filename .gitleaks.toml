@@ -11,6 +11,11 @@ description = "Ignore documentation placeholders and env templates"
 # Placeholder tokens like <JWT secret>, <service-role key>, <api-token>
 regexes = [
   '''<[^>]*(key|secret|token|password)[^>]*>''',
+  # Supabase ANON key (role:"anon", project ref cjdllpizedemzbrlfspv).
+  # Public by design — embedded in every client build as EXPO_PUBLIC_SUPABASE_ANON_KEY
+  # and safe under RLS + the FastAPI tier. Allowlists this exact token only, so a
+  # service_role JWT pasted anywhere would still trip the hook.
+  '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNqZGxscGl6ZWRlbXpicmxmc3B2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzOTY5NzIsImV4cCI6MjA5Nzk3Mjk3Mn0\.Zvx-ZjkhzVvKmtqRqD3P_w9Ngzf1Gxq79ItnnVLxyh0''',
 ]
 
 # Docs and env templates that legitimately contain placeholder secret names.

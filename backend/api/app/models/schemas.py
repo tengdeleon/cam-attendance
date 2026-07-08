@@ -45,9 +45,10 @@ class AttendanceOut(BaseModel):
     id: str
     person_id: str
     direction: Literal["in", "out"]
-    selfie_url: str
     logged_by: str
     server_time: datetime
+    # selfie_url deliberately omitted: the raw bucket path is never returned to the
+    # client. Image access goes through GET /attendance/{id}/selfie (signed URL only).
 
 
 class TodayRow(BaseModel):
@@ -56,6 +57,12 @@ class TodayRow(BaseModel):
     role: str
     last_direction: Literal["in", "out"]
     last_time: datetime
+    last_attendance_id: str
+
+
+class SelfieUrlOut(BaseModel):
+    url: str
+    expires_in: int
 
 
 class HistoryRow(BaseModel):

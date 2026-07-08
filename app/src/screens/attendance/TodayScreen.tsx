@@ -7,6 +7,7 @@ import {
   SectionList,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -15,6 +16,7 @@ import { getToday } from '../../services/attendanceApi';
 import { formatTime } from '../../utils/date';
 import type { TodayRow } from '../../types';
 import { colors, radius, spacing, type } from '../../constants/theme';
+import SelfieModal from '../../components/SelfieModal';
 
 export default function TodayScreen() {
   const insets = useSafeAreaInsets();
@@ -22,6 +24,12 @@ export default function TodayScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [modalMeta, setModalMeta] = useState<{
+    personName: string;
+    direction: 'in' | 'out';
+    serverTime: string;
+  }>({ personName: '', direction: 'in', serverTime: '' });
 
   const load = useCallback(async () => {
     setError(null);
@@ -91,19 +99,38 @@ export default function TodayScreen() {
           </View>
         )}
         renderItem={({ item }) => (
-          <View style={styles.row}>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => {
+              setModalMeta({
+                personName: item.full_name,
+                direction: item.last_direction,
+                serverTime: item.last_time,
+              });
+              setSelectedId(item.last_attendance_id);
+            }}
+          >
             <View style={styles.rowLeft}>
               <Text style={styles.name}>{item.full_name}</Text>
               <Text style={styles.role}>{item.role === 'teacher' ? 'Teacher' : 'Student'}</Text>
             </View>
             <Text style={styles.time}>{formatTime(item.last_time)}</Text>
-          </View>
+          </TouchableOpacity>
         )}
         ListEmptyComponent={
           <Text style={styles.empty}>No attendance recorded yet today.</Text>
         }
         contentContainerStyle={{ paddingBottom: spacing.xl }}
         stickySectionHeadersEnabled={false}
+      />
+
+      <SelfieModal
+        attendanceId={selectedId}
+        visible={selectedId !== null}
+        onClose={() => setSelectedId(null)}
+        personName={modalMeta.personName}
+        direction={modalMeta.direction}
+        serverTime={modalMeta.serverTime}
       />
     </View>
   );

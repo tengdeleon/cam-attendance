@@ -4,9 +4,12 @@
 set -euo pipefail
 
 if ! command -v gitleaks >/dev/null 2>&1; then
-  echo "⚠️  gitleaks not installed — skipping secret scan."
-  echo "    Install: brew install gitleaks   (see BUILD-GUIDE.md)"
-  exit 0
+  echo "❌ Commit blocked: gitleaks is not installed, so staged changes cannot be scanned for secrets."
+  echo "   Install it, then commit again:"
+  echo "     • macOS:  brew install gitleaks"
+  echo "     • other:  https://github.com/gitleaks/gitleaks#installing   (see BUILD-GUIDE.md)"
+  echo "   To bypass once (NOT recommended — leaves the scan unrun): git commit --no-verify"
+  exit 1
 fi
 
 echo "🔍 gitleaks: scanning staged changes for secrets..."

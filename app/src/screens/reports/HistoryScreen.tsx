@@ -18,6 +18,7 @@ import { getHistory } from '../../services/reportsApi';
 import { addDays, formatDateLabel, formatTime, manilaDateOf, todayManila } from '../../utils/date';
 import type { HistoryRow } from '../../types';
 import { colors, radius, spacing, type } from '../../constants/theme';
+import SelfieModal from '../../components/SelfieModal';
 
 type QuickRange = 'today' | 'yesterday' | 'week' | 'custom';
 
@@ -31,6 +32,12 @@ export default function HistoryScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [modalMeta, setModalMeta] = useState<{
+    personName: string;
+    direction: 'in' | 'out';
+    serverTime: string;
+  }>({ personName: '', direction: 'in', serverTime: '' });
 
   const load = useCallback(async () => {
     setError(null);
@@ -174,7 +181,17 @@ export default function HistoryScreen() {
             item.kind === 'header' ? (
               <Text style={styles.dayHeader}>{formatDateLabel(item.day)}</Text>
             ) : (
-              <View style={styles.row}>
+              <TouchableOpacity
+                style={styles.row}
+                onPress={() => {
+                  setModalMeta({
+                    personName: item.row.full_name,
+                    direction: item.row.direction,
+                    serverTime: item.row.server_time,
+                  });
+                  setSelectedId(item.row.id);
+                }}
+              >
                 <View
                   style={[
                     styles.badge,
@@ -190,13 +207,22 @@ export default function HistoryScreen() {
                   </Text>
                 </View>
                 <Text style={styles.time}>{formatTime(item.row.server_time)}</Text>
-              </View>
+              </TouchableOpacity>
             )
           }
           ListEmptyComponent={<Text style={styles.empty}>No records for this range.</Text>}
           contentContainerStyle={{ paddingBottom: spacing.xl }}
         />
       )}
+
+      <SelfieModal
+        attendanceId={selectedId}
+        visible={selectedId !== null}
+        onClose={() => setSelectedId(null)}
+        personName={modalMeta.personName}
+        direction={modalMeta.direction}
+        serverTime={modalMeta.serverTime}
+      />
     </View>
   );
 }

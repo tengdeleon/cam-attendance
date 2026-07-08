@@ -52,7 +52,7 @@ def today_board() -> list[dict]:
     lo, hi = manila_day_bounds(today_mnl, today_mnl)
     res = (
         sb.table("attendance")
-        .select("person_id, direction, server_time, people(full_name, role)")
+        .select("id, person_id, direction, server_time, people(full_name, role)")
         .gte("server_time", lo)
         .lt("server_time", hi)
         .order("server_time", desc=True)
@@ -68,8 +68,24 @@ def today_board() -> list[dict]:
                 "role": r["people"]["role"],
                 "last_direction": r["direction"],
                 "last_time": r["server_time"],
+                "last_attendance_id": r["id"],
             }
     return list(seen.values())
+
+
+def get_selfie_url(attendance_id: str) -> dict:
+    """Return a short-lived signed URL for the selfie attached to one attendance record."""
+    sb = get_supabase()
+    res = sb.table("attendance").select("id, selfie_url").eq("id", attendance_id).execute()
+    if not res.data:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Selfie not found")
+    row = res.data[0]
+    if not row.get("selfie_url"):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Selfie for this record has been purged")
+    url = storage_service.signed_url(row["selfie_url"], storage_service.SELFIE_URL_TTL)
+    if not url:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Could not generate signed URL")
+    return {"url": url, "expires_in": storage_service.SELFIE_URL_TTL}
 
 
 def history(start: date, end: date) -> list[dict]:

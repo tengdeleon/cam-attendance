@@ -146,6 +146,21 @@ CAM-Center Attendance Monitoring/
 
 > **Note:** the app is pinned to **Expo SDK 54** to match the installed Expo Go client; installs may need `--legacy-peer-deps`.
 
+### Secret scanning (required before you commit)
+
+This repo blocks commits that contain secrets via a [gitleaks](https://github.com/gitleaks/gitleaks) pre-commit hook. Two independent layers enforce it:
+
+1. **Local hook** (`.githooks/pre-commit`) — scans staged changes on every commit. It is **fail-closed**: if `gitleaks` is not installed, the commit is **blocked**, not skipped. This hook is tracked in-repo but only activates once you point git at it — a fresh clone does not run it until you do:
+
+   ```bash
+   git config core.hooksPath .githooks   # one-time, per clone
+   brew install gitleaks                 # macOS; the hook refuses to run without it
+   ```
+
+   Without the `core.hooksPath` line the hook is silently inactive. Without `gitleaks` installed, commits are blocked until you install it (bypass once with `git commit --no-verify`, not recommended).
+
+2. **CI backstop** (`.github/workflows/gitleaks.yml`) — runs `gitleaks` on every push and PR regardless of anyone's local setup, so a clone that skipped step 1 is still covered server-side. Both layers share the same `.gitleaks.toml` ruleset.
+
 ---
 
 ## Privacy & compliance
