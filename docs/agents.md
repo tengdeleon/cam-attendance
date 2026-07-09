@@ -1,9 +1,13 @@
 # CAM Agent Team — Design, Interaction, Build & Deploy
 
-Five Claude Code subagents for the CAM repo, optimized for token cost and accuracy.
-Definitions live in `.claude/agents/*.md` (already created). Last updated: 2026-07-07.
+Six Claude Code subagents for the CAM repo, optimized for token cost and accuracy.
+Definitions live in `.claude/agents/*.md` (already created). Last updated: 2026-07-08.
 
-## 1. The five agents
+The reusable operating procedure that sequences these agents for any new feature is
+`docs/feature-protocol.md`, invoked via the `/cam-feature` slash command
+(`.claude/commands/cam-feature.md`).
+
+## 1. The agents
 
 | Agent | Model | Tools | Role | When to invoke |
 |---|---|---|---|---|
@@ -12,8 +16,9 @@ Definitions live in `.claude/agents/*.md` (already created). Last updated: 2026-
 | `cam-mobile-dev` | sonnet | Read, Edit, Write, Grep, Glob, Bash | Implements Expo/RN work under `app/src` per plan; runs `tsc --noEmit` before returning | Any client task, same rule as backend |
 | `cam-qa` | **haiku** | Bash, Read, Grep, Glob (read-only) | Runs pytest / tsc / eslint / gitleaks; reports failures only + one verdict line | After every dev-agent run, before commit. Cheapest agent — use liberally |
 | `cam-reviewer` | sonnet | Read, Grep, Glob, Bash (read-only) | Diff-scoped security/privacy/code review: auth deps, secrets, RLS, selfie retention, RA 10173, type sync | Before merging anything touching auth, capture, storage, migrations, exports; monthly audit |
+| `cam-user-manual-manager` | sonnet | Read, Edit, Write, Grep, Glob, Bash | Keeps `docs/user-manual.md` (teacher how-to) and `docs/feature-registry.md` (developer registry) in sync with what shipped; writes only those two docs | After review, before commit, whenever a feature is added/updated/removed and is user-visible or changes an endpoint |
 
-Why these five: they map to the request lifecycle (design → develop ×2 tiers → test → review/maintain), each has a hard scope boundary (no overlap = no duplicated context), and the two most-frequently-run agents (qa, reviewer) are read-only so they can never corrupt work.
+Why these six: they map to the feature lifecycle (design → develop ×2 tiers → test → review → **document** → ship). Each has a hard scope boundary (no overlap = no duplicated context); qa and reviewer are read-only so they can never corrupt work; the doc manager writes only the two documentation files. The manual manager exists so a merged feature never ships with stale docs — documentation is part of "done", not an afterthought.
 
 ## 2. Interaction model
 
@@ -38,18 +43,21 @@ Hub-and-spoke. **You (the main Claude session) are the orchestrator.** Agents ne
                           ▼  5. "review diff <range>"
                      cam-reviewer ──► APPROVE / BLOCK
                           │  BLOCK → back to dev agent with findings
+                          ▼  6. "update docs for <feature>"
+              cam-user-manual-manager ──► user-manual.md + feature-registry.md
+                          │
                           ▼
                    you commit + push
 ```
 
 Standard flows:
 
-- **Feature (multi-file):** planner → dev(s) → qa → reviewer → commit. Backend and mobile dev can run in parallel when the plan splits cleanly at the API contract (planner defines the contract first, both sides build to it).
-- **Bugfix (single file):** dev agent directly (skip planner) → qa. Reviewer only if the fix touches the §7 checklist areas.
+- **Feature (multi-file):** planner → dev(s) → qa → reviewer → **doc manager** → commit. Backend and mobile dev can run in parallel when the plan splits cleanly at the API contract (planner defines the contract first, both sides build to it). Full procedure: `docs/feature-protocol.md`.
+- **Bugfix (single file):** dev agent directly (skip planner) → qa → doc manager if user-visible. Reviewer only if the fix touches the §7 checklist areas.
 - **Rework loop:** on qa FAIL or reviewer BLOCK, continue the *same* dev agent via SendMessage with only the failure lines — its context is intact, so it costs a fraction of a fresh spawn.
 - **Maintenance (monthly):** cam-qa full run + cam-reviewer audit of `git diff <last-audit-tag>..HEAD`; findings become planner tasks.
 
-Handoff artifacts (the only things passed between steps): plan file path, changed-file list, qa verdict lines, reviewer findings table. Never full file contents or logs.
+Handoff artifacts (the only things passed between steps): plan file path, changed-file list, qa verdict lines, reviewer findings table, the doc-manager's sections-touched list. Never full file contents or logs.
 
 ## 3. Build steps
 
