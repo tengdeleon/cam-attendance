@@ -24,6 +24,7 @@ export interface AttendanceRecord {
   direction: Direction;
   logged_by: string;
   server_time: string;
+  warnings?: Array<{ code: 'missed_checkout'; date: string }>;
 }
 
 export interface TodayRow {
