@@ -38,6 +38,10 @@ class AttendanceIn(BaseModel):
     person_id: str
     direction: Literal["in", "out"]
     device_time: Optional[datetime] = None
+    # Stable per-capture key (the client's offline-queue id). Optional: when absent
+    # the request behaves as before (no idempotency protection). When present, a
+    # replay with the same key returns the original record instead of a duplicate.
+    idempotency_key: Optional[str] = None
     # selfie is uploaded as multipart file alongside this payload
 
 

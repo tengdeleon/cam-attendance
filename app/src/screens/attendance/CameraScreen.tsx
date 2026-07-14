@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { logAttendance } from '../../services/attendanceApi';
 import { ApiError } from '../../services/apiClient';
-import { enqueue } from '../../services/syncQueue';
+import { enqueue, newIdempotencyKey } from '../../services/syncQueue';
 import { compressSelfie } from '../../utils/image';
 import { colors, radius } from '../../constants/theme';
 import type { RootStackParamList } from '../../navigation/RootNavigator';
@@ -62,6 +62,10 @@ export default function CameraScreen({ navigation, route }: Props) {
   const submit = async () => {
     if (!photoUri) return;
     setBusy(true);
+    // One key per capture attempt. Reused by the online POST and, if that fails on
+    // the network, by the queued replay — so a request that reached the server but
+    // lost its ack is collapsed to a single attendance record, not duplicated.
+    const idempotencyKey = newIdempotencyKey();
     try {
       const compressed = await compressSelfie(photoUri);
       try {
@@ -69,6 +73,7 @@ export default function CameraScreen({ navigation, route }: Props) {
           personId: person.id,
           direction,
           selfieUri: compressed,
+          idempotencyKey,
         });
         await cleanupLocal(photoUri, compressed);
 
@@ -110,6 +115,7 @@ export default function CameraScreen({ navigation, route }: Props) {
           personName: person.full_name,
           direction,
           selfieUri: compressed,
+          idempotencyKey,
         });
         await cleanupLocal(photoUri, compressed);
         Alert.alert(

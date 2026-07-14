@@ -15,10 +15,16 @@ async def log_attendance(
     person_id: str = Form(...),
     direction: str = Form(...),
     device_time: Optional[datetime] = Form(default=None),
+    idempotency_key: Optional[str] = Form(default=None),
     selfie: UploadFile = File(...),
     teacher: dict = Depends(current_teacher),
 ):
-    payload = AttendanceIn(person_id=person_id, direction=direction, device_time=device_time)
+    payload = AttendanceIn(
+        person_id=person_id,
+        direction=direction,
+        device_time=device_time,
+        idempotency_key=idempotency_key,
+    )
     content = await selfie.read()
     return attendance_service.record_attendance(payload, content, teacher["id"])
 

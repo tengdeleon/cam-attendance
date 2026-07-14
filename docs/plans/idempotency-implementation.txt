@@ -1,0 +1,220 @@
+================================================================================
+CAM — POST /attendance IDEMPOTENCY: IMPLEMENTATION RUNBOOK
+================================================================================
+Last updated: 2026-07-14
+Scope: make check-in/out safe against duplicate submissions across all three
+tiers (Supabase migration -> FastAPI guard -> Expo client wiring).
+
+--------------------------------------------------------------------------------
+0. WHY (the problem this closes)
+--------------------------------------------------------------------------------
+POST /attendance uploads a selfie AND inserts a row. Firing it twice for one
+capture produces:
+  - two attendance rows (corrupt in/out state — "checked in twice"), and
+  - two selfie uploads (wasted storage on the Supabase 1GB free tier).
+
+Three ways a duplicate happens today:
+  (a) DOUBLE-TAP  — teacher taps "Confirm" twice / a re-render re-fires.
+  (b) OFFLINE REPLAY DOUBLE-FIRE — the sync queue replays the same item twice
+      (two flushes racing, or app relaunch mid-flush).
+  (c) LOST-ACK    — the request reaches the server and inserts, but the network
+      drops before the 201 comes back. The client treats it as failure and
+      ENQUEUES it; the later replay is a duplicate of a row that already exists.
+
+Fix: every capture carries a STABLE idempotency key. The server records it and,
+on any repeat of that key, returns the ORIGINAL row instead of inserting again.
+Case (c) is why the key must be generated once at capture time and reused by BOTH
+the online POST and the queued replay — a server-side-only key can't cover it.
+
+--------------------------------------------------------------------------------
+1. DEPLOY ORDER (do not reorder — each step assumes the previous is live)
+--------------------------------------------------------------------------------
+  STEP 1  Apply DB migration 0003 to Supabase.
+  STEP 2  Deploy the FastAPI backend (guard + schema field).
+  STEP 3  Ship the Expo client (sends the key).
+
+Why this order:
+  - Migration before backend: the backend insert now writes an idempotency_key
+    column; that column must exist first.
+  - Backend before client: an old backend ignores the new form field (harmless),
+    but you want the guard live before clients start relying on it. A new client
+    against an old backend still works — the extra field is simply dropped.
+  - The column is NULLABLE and the guard is a no-op when no key is sent, so every
+    intermediate combination is backward-compatible. No coordinated cutover.
+
+--------------------------------------------------------------------------------
+2. FILES CHANGED (inventory)
+--------------------------------------------------------------------------------
+TIER 3 — data
+  backend/supabase/migrations/0003_attendance_idempotency.sql      [NEW]
+
+TIER 2 — FastAPI
+  backend/api/app/models/schemas.py                                [EDIT]
+  backend/api/app/routers/attendance.py                            [EDIT]
+  backend/api/app/services/attendance_service.py                   [EDIT]
+  backend/api/tests/test_attendance_idempotency.py                 [NEW]
+
+TIER 1 — Expo client
+  app/src/services/attendanceApi.ts                                [EDIT]
+  app/src/services/syncQueue.ts                                    [EDIT]
+  app/src/screens/attendance/CameraScreen.tsx                      [EDIT]
+
+--------------------------------------------------------------------------------
+3. STEP 1 — DATABASE MIGRATION (Supabase)
+--------------------------------------------------------------------------------
+File: backend/supabase/migrations/0003_attendance_idempotency.sql
+
+What it does:
+  - ADD COLUMN idempotency_key text  (nullable — legacy rows and key-less
+    requests stay valid).
+  - CREATE UNIQUE INDEX ... WHERE idempotency_key IS NOT NULL  (a PARTIAL unique
+    index: uniqueness enforced only for non-null keys, so null-key rows never
+    collide with one another). This index is the race backstop for case (b)/(c)
+    when two requests with the same key arrive concurrently.
+
+How to apply (pick one):
+  A) Supabase SQL editor: paste the file contents, run.
+  B) Supabase CLI:  supabase db push
+  C) psql:  psql "$DATABASE_URL" -f backend/supabase/migrations/0003_attendance_idempotency.sql
+
+Verify:
+  select column_name from information_schema.columns
+    where table_name = 'attendance' and column_name = 'idempotency_key';
+  -- expect 1 row
+  select indexname from pg_indexes
+    where tablename = 'attendance' and indexname = 'uq_attendance_idempotency_key';
+  -- expect 1 row
+
+Rollback (manual — see the note block at the bottom of the .sql):
+  drop index if exists uq_attendance_idempotency_key;
+  alter table attendance drop column if exists idempotency_key;
+
+--------------------------------------------------------------------------------
+4. STEP 2 — FASTAPI BACKEND
+--------------------------------------------------------------------------------
+4.1  models/schemas.py — AttendanceIn
+     Added optional field:
+        idempotency_key: Optional[str] = None
+     Omitting it preserves current behavior exactly.
+
+4.2  routers/attendance.py — log_attendance handler
+     Added a multipart form field (the client posts form fields, not a JSON body
+     or a header — match that convention):
+        idempotency_key: Optional[str] = Form(default=None)
+     and threaded it into the AttendanceIn(...) constructor.
+
+4.3  services/attendance_service.py — record_attendance (the guard)
+     Two layers:
+     (1) EARLY SHORT-CIRCUIT — before person validation, before the R1/R2
+         duplicate-state check, and before the selfie upload:
+            if payload.idempotency_key:
+                prior = _find_by_idempotency_key(sb, payload.idempotency_key)
+                if prior:
+                    return {**prior, "warnings": []}
+         Order matters: it must run before R1/R2, otherwise a legitimate replay
+         of a check-in would trip "already checked in" (409) instead of returning
+         the original 201. Running before the upload also saves the storage write.
+     (2) RACE BACKSTOP — the insert is wrapped so that if two same-key requests
+         race past the short-circuit, the loser (rejected by the unique index)
+         re-reads and returns the winner's row instead of surfacing a 500.
+     New helper: _find_by_idempotency_key(sb, key) selects the AttendanceOut-shaped
+     columns for a prior row and returns it (or None).
+     The inserted row dict now includes:  "idempotency_key": payload.idempotency_key
+
+4.4  Deploy: push to the Render/Fly service as usual. No new env vars, no new
+     dependencies.
+
+--------------------------------------------------------------------------------
+5. STEP 3 — EXPO CLIENT
+--------------------------------------------------------------------------------
+5.1  services/attendanceApi.ts
+     - LogAttendanceInput gains:  idempotencyKey?: string
+     - logAttendance appends it to FormData only when present:
+         if (idempotencyKey) form.append('idempotency_key', idempotencyKey);
+
+5.2  services/syncQueue.ts
+     - Schema: idempotency_key TEXT added to CREATE TABLE for BOTH
+       pending_attendance and failed_attendance.
+     - CLIENT MIGRATION (important): CREATE TABLE IF NOT EXISTS does NOT alter a
+       table that already exists on a returning user's device. So a guarded
+       ALTER runs at boot:
+         ensureColumn('pending_attendance', 'idempotency_key', 'TEXT');
+         ensureColumn('failed_attendance',  'idempotency_key', 'TEXT');
+       (ensureColumn checks PRAGMA table_info and ADDs the column at most once.)
+     - New export: newIdempotencyKey() -> `${Date.now()}-${rand}`  (stable id).
+     - enqueue() accepts an optional idempotencyKey and stores it; if none is
+       passed it falls back to the queue row id (still stable across replays).
+     - flush() passes item.idempotency_key into logAttendance on replay.
+     - PendingItem / FailedItem interfaces gain idempotency_key (nullable; null
+       only for rows written before this change).
+
+5.3  screens/attendance/CameraScreen.tsx  (THE KEY IS BORN HERE)
+     - import { enqueue, newIdempotencyKey } from '../../services/syncQueue';
+     - In submit(), generate ONE key per capture, before the network call:
+         const idempotencyKey = newIdempotencyKey();
+     - Pass that SAME key to BOTH:
+         logAttendance({ ..., idempotencyKey })     // online attempt
+         enqueue({ ..., idempotencyKey })           // offline fallback
+     This single shared key is what closes case (c): the online POST and the
+     queued replay are now the same logical request to the server.
+
+5.4  Ship: bump the build / EAS update as normal.
+     NOTE (from prior CAM history): if shipping via EAS Update, make sure the
+     fielded build has updates.url + a channel, or push a fresh native build —
+     an OTA to a build that predates the update config won't land.
+
+--------------------------------------------------------------------------------
+6. VERIFICATION
+--------------------------------------------------------------------------------
+6.1  Backend unit tests (already added — all pass):
+       cd backend/api
+       pip install -r requirements.txt        # first time only
+       python3 -m pytest -q                    # expect: all passed
+     Covers: replay returns original + no second insert + no re-upload; first
+     request stores the key; key-less request still inserts (null key).
+
+6.2  Manual end-to-end (device or Expo Go):
+     (a) DOUBLE-TAP: mash "Confirm check in" rapidly. Expect exactly ONE row in
+         the attendance table (query by person + today) and ONE selfie in storage.
+     (b) OFFLINE -> ONLINE: enable airplane mode, check someone in ("Saved
+         offline"), re-enable network, let the queue flush. Expect ONE row.
+     (c) LOST-ACK (hardest): throttle/kill the network right after tapping
+         Confirm so the request lands server-side but the client errors and
+         enqueues. On flush, expect the server to return the original row and NO
+         duplicate. Confirm the same key is on both the (former) online attempt
+         and the queued item.
+     (d) RETURNING-USER MIGRATION: install the new build over an old one that had
+         queued items. Confirm the app still boots (the ALTER ran) and old queued
+         items still flush (they replay with a null key = pre-change behavior).
+
+6.3  DB spot check after tests:
+       select idempotency_key, count(*) from attendance
+         where idempotency_key is not null
+         group by idempotency_key having count(*) > 1;
+       -- expect ZERO rows (no key ever maps to more than one record)
+
+--------------------------------------------------------------------------------
+7. RISKS / NOTES
+--------------------------------------------------------------------------------
+  - Legacy queued items (written before this build) replay with a NULL key and
+    therefore get NO idempotency protection. This is acceptable: the window is
+    small and transient, and behavior is identical to today. It self-heals as the
+    queue drains.
+  - The partial unique index only guards NON-NULL keys. Two key-less inserts can
+    still both succeed (by design) — that's the pre-existing behavior, unchanged.
+  - Selfie upload precedes the insert. In the rare race-backstop path (5/4.3-2)
+    the loser has already uploaded; upload_selfie uses upsert so the overwrite is
+    harmless, but that one selfie write is not saved in the race case. The common
+    replay case (short-circuit) DOES skip the upload.
+  - No new secrets, env vars, or dependencies in any tier.
+
+--------------------------------------------------------------------------------
+8. ROLLBACK (whole feature)
+--------------------------------------------------------------------------------
+  Client:  revert the three app/ files and ship. Backend/DB can stay — a missing
+           form field is simply not sent; guard becomes dormant.
+  Backend: revert the three backend files. The idempotency_key column can remain
+           (harmless, nullable, ignored).
+  DB:      only if you truly want the column gone — run the rollback in §3. Not
+           required; leaving it is safe.
+================================================================================
