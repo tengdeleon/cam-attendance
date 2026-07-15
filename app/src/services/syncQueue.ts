@@ -22,6 +22,7 @@ export interface PendingItem {
   device_time: string; // ISO, original capture time
   selfie_path: string; // file:// uri inside documentDirectory/queue/
   created_at: string;
+  idempotency_key: string | null; // null only for rows migrated from a pre-idempotency install
 }
 
 const QUEUE_DIR = `${FileSystem.documentDirectory}queue/`;
@@ -35,7 +36,8 @@ db.execSync(`
     direction TEXT NOT NULL,
     device_time TEXT NOT NULL,
     selfie_path TEXT NOT NULL,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    idempotency_key TEXT
   );
   CREATE TABLE IF NOT EXISTS failed_attendance (
     id TEXT PRIMARY KEY,
@@ -47,9 +49,33 @@ db.execSync(`
     created_at TEXT NOT NULL,
     failed_at TEXT NOT NULL,
     error_code TEXT,
-    error_message TEXT
+    error_message TEXT,
+    idempotency_key TEXT
   );
 `);
+
+// Client-side migration for devices whose cam.db predates the idempotency change:
+// CREATE TABLE IF NOT EXISTS above is a no-op on an existing table, so the new
+// column must be added explicitly. ADD COLUMN is guarded to run at most once.
+function columnExists(table: string, col: string): boolean {
+  const rows = db.getAllSync<{ name: string }>(`PRAGMA table_info(${table})`);
+  return rows.some((r) => r.name === col);
+}
+
+function ensureColumn(table: string, col: string, decl: string): void {
+  if (!columnExists(table, col)) {
+    db.execSync(`ALTER TABLE ${table} ADD COLUMN ${col} ${decl}`);
+  }
+}
+
+ensureColumn('pending_attendance', 'idempotency_key', 'TEXT');
+ensureColumn('failed_attendance', 'idempotency_key', 'TEXT');
+
+/** Stable key for one capture attempt. Shared by the online POST and any offline
+ *  replay of the same capture so the backend collapses them to a single record. */
+export function newIdempotencyKey(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
 
 async function ensureQueueDir(): Promise<void> {
   const info = await FileSystem.getInfoAsync(QUEUE_DIR);
@@ -64,9 +90,13 @@ export async function enqueue(input: {
   personName: string;
   direction: Direction;
   selfieUri: string;
+  idempotencyKey?: string; // pass the SAME key the online attempt used, so a request
+                           // that reached the server but lost its ack won't duplicate.
 }): Promise<PendingItem> {
   await ensureQueueDir();
   const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  // Fall back to the queue id if no key was supplied — still stable across replays.
+  const idempotencyKey = input.idempotencyKey ?? id;
   const dest = `${QUEUE_DIR}${id}.jpg`;
   await FileSystem.copyAsync({ from: input.selfieUri, to: dest });
 
@@ -78,11 +108,12 @@ export async function enqueue(input: {
     device_time: new Date().toISOString(),
     selfie_path: dest,
     created_at: new Date().toISOString(),
+    idempotency_key: idempotencyKey,
   };
   db.runSync(
-    `INSERT INTO pending_attendance (id, person_id, person_name, direction, device_time, selfie_path, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [item.id, item.person_id, item.person_name, item.direction, item.device_time, item.selfie_path, item.created_at]
+    `INSERT INTO pending_attendance (id, person_id, person_name, direction, device_time, selfie_path, created_at, idempotency_key)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [item.id, item.person_id, item.person_name, item.direction, item.device_time, item.selfie_path, item.created_at, item.idempotency_key]
   );
   return item;
 }
@@ -114,6 +145,7 @@ export interface FailedItem {
   failed_at: string;
   error_code: string | null;
   error_message: string | null;
+  idempotency_key: string | null;
 }
 
 export function listFailed(): FailedItem[] {
@@ -169,6 +201,7 @@ export async function flush(): Promise<FlushResult> {
           direction: item.direction,
           selfieUri: item.selfie_path,
           deviceTime: item.device_time,
+          idempotencyKey: item.idempotency_key ?? undefined,
         });
         await remove(item);
         synced++;
@@ -181,14 +214,15 @@ export async function flush(): Promise<FlushResult> {
           db.withTransactionSync(() => {
             db.runSync(
               `INSERT OR REPLACE INTO failed_attendance
-               (id, person_id, person_name, direction, device_time, selfie_path, created_at, failed_at, error_code, error_message)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+               (id, person_id, person_name, direction, device_time, selfie_path, created_at, failed_at, error_code, error_message, idempotency_key)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
               [
                 item.id, item.person_id, item.person_name, item.direction,
                 item.device_time, item.selfie_path, item.created_at,
                 new Date().toISOString(),
                 e.code ?? '',
                 e.message,
+                item.idempotency_key,
               ]
             );
             db.runSync('DELETE FROM pending_attendance WHERE id = ?', [item.id]);

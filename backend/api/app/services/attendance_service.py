@@ -35,11 +35,32 @@ def _find_missed_checkout_days(sb, person_id: str, before_utc: str, today_mnl: d
     return [r["local_day"] for r in res.data or []]
 
 
+def _find_by_idempotency_key(sb, key: str) -> dict | None:
+    """Return the AttendanceOut-shaped fields of a prior row with this key, or None."""
+    res = (
+        sb.table("attendance")
+        .select("id, person_id, direction, logged_by, server_time")
+        .eq("idempotency_key", key)
+        .limit(1)
+        .execute()
+    )
+    return res.data[0] if res.data else None
+
+
 def record_attendance(payload: AttendanceIn, selfie: bytes, teacher_id: str) -> dict:
     if not selfie:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Selfie is required")
 
     sb = get_supabase()
+
+    # Idempotency short-circuit — runs before person validation, the R1/R2 duplicate-
+    # state guard, and the selfie upload. A replay (double-tap or offline re-fire)
+    # returns the original record instead of a duplicate insert or a spurious 409.
+    if payload.idempotency_key:
+        prior = _find_by_idempotency_key(sb, payload.idempotency_key)
+        if prior:
+            return {**prior, "warnings": []}
+
     person = sb.table("people").select("id,is_active").eq("id", payload.person_id).single().execute()
     if not person.data or not person.data["is_active"]:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown or inactive person")
@@ -98,8 +119,19 @@ def record_attendance(payload: AttendanceIn, selfie: bytes, teacher_id: str) -> 
         "device_time": payload.device_time.isoformat() if payload.device_time else None,
         "server_time": datetime.now(timezone.utc).isoformat(),
         "sync_status": "synced",
+        "idempotency_key": payload.idempotency_key,
     }
-    sb.table("attendance").insert(row).execute()
+    try:
+        sb.table("attendance").insert(row).execute()
+    except Exception:
+        # Concurrent-request race: the earlier short-circuit missed a request that
+        # was in flight, and the partial unique index (0003) rejected this insert.
+        # Recover by returning the row the winner wrote — never surface a 500.
+        if payload.idempotency_key:
+            prior = _find_by_idempotency_key(sb, payload.idempotency_key)
+            if prior:
+                return {**prior, "warnings": []}
+        raise
     return {**row, "warnings": warnings}
 
 

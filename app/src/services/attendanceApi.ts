@@ -7,13 +7,16 @@ export interface LogAttendanceInput {
   direction: Direction;
   selfieUri: string; // local file uri of the (compressed) jpeg
   deviceTime?: string; // ISO; set by queue replays to keep the original capture time
+  idempotencyKey?: string; // stable per-capture key; lets the backend dedupe double-taps
+                           // and offline replays. Same key online + on replay = one record.
 }
 
-export function logAttendance({ personId, direction, selfieUri, deviceTime }: LogAttendanceInput) {
+export function logAttendance({ personId, direction, selfieUri, deviceTime, idempotencyKey }: LogAttendanceInput) {
   const form = new FormData();
   form.append('person_id', personId);
   form.append('direction', direction);
   form.append('device_time', deviceTime ?? new Date().toISOString());
+  if (idempotencyKey) form.append('idempotency_key', idempotencyKey);
   form.append('selfie', {
     uri: selfieUri,
     name: 'selfie.jpg',
